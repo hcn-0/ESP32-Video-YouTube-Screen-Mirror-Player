@@ -1,6 +1,7 @@
 """Play an MP4 on the laptop and mirror it (1-bit) to an ESP32 OLED. ESP32 buttons control playback.
 
-Usage:  python main.py [video.mp4]   (no argument = videos/video.mp4, else a file dialog)
+Usage:  python main.py ["video.mp4" | "https://youtube.com/watch?v=..."]
+        (no argument = asks for a YouTube link; Enter = videos/video.mp4)
 Keys in the video window: SPACE or K = play/pause, LEFT/A = -5 s, RIGHT/D = +5 s, Q or ESC = quit.
 """
 import os
@@ -13,6 +14,7 @@ import config
 from audio_player import AudioPlayer
 from esp32_link import ESP32Link
 from frame_convert import to_oled_bytes
+import youtube
 
 
 def fmt(t):
@@ -20,25 +22,42 @@ def fmt(t):
     return f"{t // 60:02d}:{t % 60:02d}"
 
 
-def pick_file():
-    # 1) path given on the command line
-    if len(sys.argv) > 1:
-        return sys.argv[1]
-    # 2) default: videos/video.mp4 in the project folder (set in config.py)
+def resolve_source():
+    """Return a local video path. Accepts a YouTube URL or a file path."""
     project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    videos_dir = os.path.join(project_dir, "videos")
+
     default = config.VIDEO_PATH
     if not os.path.isabs(default):
         default = os.path.join(project_dir, default)
+
+    # 1) command line: a URL or a file path
+    source = sys.argv[1] if len(sys.argv) > 1 else ""
+
+    # 2) otherwise ask in the console (Enter = default file)
+    if not source and config.ASK_SOURCE:
+        print("Paste a YouTube link, or press Enter to play", os.path.relpath(default, project_dir))
+        source = input("> ").strip().strip('"')
+
+    if source and youtube.is_url(source):
+        try:
+            return youtube.download(source, videos_dir, config.YOUTUBE_MAX_HEIGHT)
+        except Exception as e:
+            print(f"[youtube] failed: {e}")
+            return ""
+    if source:
+        return source
+
+    # 3) default file, else file dialog
     if os.path.isfile(default):
         return default
     print(f"[video] {default} not found - opening file dialog")
-    # 3) fall back to a file dialog
     from tkinter import Tk, filedialog
     root = Tk()
     root.withdraw()
     root.attributes("-topmost", True)
     path = filedialog.askopenfilename(
-        title="Select a video", initialdir=os.path.join(project_dir, "videos"),
+        title="Select a video", initialdir=videos_dir,
         filetypes=[("Video", "*.mp4 *.mkv *.avi *.mov *.webm"), ("All files", "*.*")])
     root.destroy()
     return path
@@ -174,7 +193,7 @@ class VideoPlayer:
 
 
 def main():
-    path = pick_file()
+    path = resolve_source()
     if not path:
         print("No file selected.")
         return

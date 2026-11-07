@@ -71,9 +71,10 @@ class ESP32Link:
         return self.connected and (not self.awaiting_ack or
                                    time.perf_counter() - self.sent_at > self.ack_timeout)
 
-    def send_frame(self, bits: bytes, progress: int, paused: bool):
+    def send_frame(self, bits: bytes, progress: int, paused: bool, live: bool = False):
         assert len(bits) == 1024
-        payload = bytes((progress & 0xFF, 1 if paused else 0)) + bits
+        flags = (1 if paused else 0) | (2 if live else 0)   # bit0 paused, bit1 live (hide progress bar)
+        payload = bytes((progress & 0xFF, flags)) + bits
         # set flags BEFORE writing so a very fast ACK is not lost
         self.awaiting_ack, self.last_acked = True, False
         self.sent_at = time.perf_counter()

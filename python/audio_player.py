@@ -11,11 +11,16 @@ class AudioPlayer:
             # 'vn' = ignore video, 'paused' = wait until we say go
             self.player = MediaPlayer(path, ff_opts={"vn": True, "sn": True, "paused": True})
             t0 = time.time()
+            md = None
             while time.time() - t0 < 5.0:           # wait until the file is opened
                 md = self.player.get_metadata()
                 if md and md.get("duration"):
                     break
                 time.sleep(0.05)
+            if md and md.get("duration"):
+                print(f"[audio] ready (duration {md['duration']:.1f}s)")
+            else:
+                print("[audio] WARNING: could not read audio info - the file may have no sound track")
         except Exception as e:
             print(f"[audio] sound disabled: {e}")
             print("[audio] install it with:  python -m pip install ffpyplayer")

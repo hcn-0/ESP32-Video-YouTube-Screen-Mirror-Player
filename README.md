@@ -49,6 +49,18 @@ python main.py "C:\videos\clip.mp4"
 ```
 Click the video window, then: **SPACE** or **K** = play/pause, **Left arrow** or **A** = -5 s, **Right arrow** or **D** = +5 s, **Q** or **ESC** = quit.
 
+### Playing a YouTube video
+```
+python main.py "https://www.youtube.com/watch?v=VIDEO_ID"
+```
+or just run `python main.py` and paste the link when asked. The video is downloaded (max 480p) into `videos/` the first time, then played. Re-use of the same link skips the download. Keep yt-dlp current with `python -m pip install -U yt-dlp` if YouTube changes.
+
+### Mirror anything on screen (YouTube in the browser, no download)
+```
+python mirror.py
+```
+Start the video in your browser first, run the command, click the browser within 5 s, drag a box around the video and press ENTER. Playback is controlled in YouTube itself (needs the updated firmware for the hidden progress bar).
+
 ### Changing port / baud rate
 Edit `python/config.py`: `SERIAL_PORT = "COM5"` (or `"AUTO"`), `BAUD_RATE = 921600`.
 If you change the baud rate, change `const uint32_t BAUD` in the `.ino` to the same value and re-upload.

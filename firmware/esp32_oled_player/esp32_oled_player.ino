@@ -4,7 +4,7 @@
   Libraries: Adafruit SSD1306, Adafruit GFX
 
   PC -> ESP32 packet:  AA 55 | type | len(LE16) | payload | CRC16-CCITT-FALSE (LE16)
-     type 0x01 FRAME     payload = progress(0..255), flags(bit0 = paused), 1024 bytes (SSD1306 page layout)
+     type 0x01 FRAME     payload = progress(0..255), flags(bit0 = paused, bit1 = live mode), 1024 bytes (SSD1306 page layout)
      type 0x02 HEARTBEAT payload = none
   ESP32 -> PC (text lines): "K" frame OK | "E" bad packet | "READY"
   Playback is controlled from the laptop keyboard (no physical buttons).
@@ -43,6 +43,7 @@ uint32_t lastByteMs = 0, lastPacketMs = 0;
 bool linkSeen = false, lastAlive = false, frameReady = false;
 uint8_t progress = 0;
 bool paused = false;
+bool liveMode = false;     // screen-mirror mode: no progress bar
 
 static inline uint16_t crcUpdate(uint16_t crc, uint8_t b) {
   crc ^= (uint16_t)b << 8;
@@ -63,11 +64,13 @@ void drawStatus(const char *l1, const char *l2) {
 
 // Called right after a frame is copied into the display buffer
 void drawOverlay() {
-  // progress bar: 1px track + 3px filled part along the bottom
-  display.fillRect(0, SCREEN_H - 3, SCREEN_W, 3, SSD1306_BLACK);
-  display.drawFastHLine(0, SCREEN_H - 1, SCREEN_W, SSD1306_WHITE);
-  uint8_t w = (uint16_t)progress * SCREEN_W / 255;
-  if (w) display.fillRect(0, SCREEN_H - 3, w, 3, SSD1306_WHITE);
+  // progress bar: 1px track + 3px filled part along the bottom (hidden in live mirror mode)
+  if (!liveMode) {
+    display.fillRect(0, SCREEN_H - 3, SCREEN_W, 3, SSD1306_BLACK);
+    display.drawFastHLine(0, SCREEN_H - 1, SCREEN_W, SSD1306_WHITE);
+    uint8_t w = (uint16_t)progress * SCREEN_W / 255;
+    if (w) display.fillRect(0, SCREEN_H - 3, w, 3, SSD1306_WHITE);
+  }
   // pause icon
   if (paused) {
     display.fillRect(0, 0, 13, 13, SSD1306_BLACK);
@@ -83,6 +86,7 @@ void handlePacket() {
   if (rxType == T_FRAME && rxLen == FRAME_PAYLOAD) {
     progress = rxBuf[0];
     paused = rxBuf[1] & 1;
+    liveMode = rxBuf[1] & 2;
     memcpy(display.getBuffer(), rxBuf + 2, FRAME_BYTES);   // CRC already verified: never half-drawn
     drawOverlay();
     frameReady = true;               // display.display() happens once in loop()
